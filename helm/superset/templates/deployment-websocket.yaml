@@ -1,0 +1,112 @@
+{{- if .Values.supersetWebsocket.enabled -}}
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "superset.fullname" . }}-websocket
+  labels:
+    app: {{ template "superset.name" . }}-websocket
+    chart: {{ template "superset.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+{{- if .Values.supersetWebsocket.deploymentAnnotations }}
+  annotations:
+    {{ toYaml .Values.supersetWebsocket.deploymentAnnotations | nindent 4 }}
+{{- end }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ template "superset.name" . }}-websocket
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      annotations:
+        # Force reload on config changes
+        checksum/superset_config.py: {{ include "superset-config" . | sha256sum }}
+        checksum/superset_init.sh: {{ tpl .Values.init.initscript . | sha256sum }}
+        checksum/superset_bootstrap.sh: {{ tpl .Values.bootstrapScript . | sha256sum }}
+        checksum/connections: {{ .Values.supersetNode.connections | toYaml | sha256sum }}
+        checksum/extraConfigs: {{ .Values.extraConfigs | toYaml | sha256sum }}
+        checksum/extraSecrets: {{ .Values.extraSecrets | toYaml | sha256sum }}
+        checksum/extraSecretEnv: {{ .Values.extraSecretEnv | toYaml | sha256sum }}
+        checksum/configOverrides: {{ .Values.configOverrides | toYaml | sha256sum }}
+        {{- if .Values.supersetWebsocket.forceReload }}
+        # Optionally force the thing to reload
+        force-reload: {{ randAlphaNum 5 | quote }}
+        {{- end }}
+      {{- if .Values.supersetWebsocket.podAnnotations }}
+        {{ toYaml .Values.supersetWebsocket.podAnnotations | nindent 8 }}
+      {{- end }}
+      labels:
+        app: {{ template "superset.name" . }}-websocket
+        release: {{ .Release.Name }}
+    spec:
+      {{- if .Values.serviceAccountName }}
+      serviceAccountName: {{ .Values.serviceAccountName }}
+      {{- end }}
+      securityContext:
+        runAsUser: {{ .Values.runAsUser }}
+      {{- if .Values.supersetWebsocket.initContainers }}
+      initContainers:
+      {{-  tpl (toYaml .Values.supersetWebsocket.initContainers) . | nindent 6 }}
+      {{- end }}
+      {{- with .Values.hostAliases }}
+      hostAliases: {{ toYaml . | nindent 6 }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}-websocket
+          image: "{{- coalesce .Values.supersetWebsocket.image.repository .Values.image.repository }}:{{- coalesce .Values.supersetWebsocket.image.tag .Values.image.tag }}"
+          imagePullPolicy: {{- coalesce .Values.supersetWebsocket.image.pullPolicy .Values.image.pullPolicy | indent 1}}
+          env:
+            - name: "PORT"
+              value: {{ .Values.supersetWebsocket.service.port | quote}}
+            {{- range $key, $value := .Values.supersetWebsocket.env }}
+            - name: {{ $key | quote}}
+              value: {{ $value | quote }}
+            {{- end }}
+          envFrom:
+            - secretRef:
+                name: {{ tpl .Values.envFromSecret . | quote }}
+            {{- range .Values.envFromSecrets }}
+            - secretRef:
+                name: {{ tpl . $ | quote }}
+            {{- end }}
+          ports:
+            - name: ws
+              containerPort: {{ .Values.supersetWebsocket.service.port }}
+              protocol: TCP
+          resources:
+{{ toYaml .Values.supersetWebsocket.resources | indent 12 }}
+    {{- with .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+{{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+{{ toYaml .Values.imagePullSecrets | indent 8 }}
+      {{- end }}
+{{- end }}
