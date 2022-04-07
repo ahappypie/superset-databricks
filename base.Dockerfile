@@ -1,4 +1,4 @@
-ARG SUPERSET_VERSION=1.4.1
+ARG SUPERSET_VERSION=1.4.2
 FROM apache/superset:$SUPERSET_VERSION
 
 USER root
@@ -8,13 +8,13 @@ RUN apt update
 RUN apt install --no-install-recommends -y g++ unixodbc-dev
 
 RUN pip install --no-cache \
-    psycopg2-binary==2.9.3 \
+    psycopg2==2.9.3 \
     redis==4.1.4 \
     databricks-dbapi[odbc,sqlalchemy]==0.6.0 \
     gevent==21.12.0 \
     authlib==0.15.5
 
-RUN apt remove -y g++ unixodbc-dev && \
+RUN apt remove -y g++ && \
     apt autoremove -yqq --purge && \
     apt clean && \
     rm -r /var/lib/apt/lists/*

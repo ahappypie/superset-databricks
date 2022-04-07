@@ -1,4 +1,4 @@
-FROM ghcr.io/ahappypie/superset-databricks:1.4.1
+FROM ghcr.io/ahappypie/superset-databricks:1.4.2
 
 USER root
 
